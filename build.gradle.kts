@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.file.DuplicatesStrategy
 
 plugins {
     `java-library`
@@ -82,6 +83,68 @@ tasks.named<ShadowJar>("shadowJar") {
     mergeServiceFiles()
 }
 tasks.named("assemble") { dependsOn("shadowJar") }
+
+// ---------------------------------------------------------------------------
+// "-all-platforms" uber jar (GitHub Release convenience artifact).
+//
+// A SINGLE cross-platform jar that bundles liteparse-markdown + commonmark + the
+// liteparse-java classes + the native binaries for ALL six platforms. liteparse-java
+// picks the right native for the current OS/arch at runtime, so one download runs
+// everywhere — no separate per-platform bundle needed.
+//
+// Each liteparse-java bundle is self-contained (identical Java classes + Jackson +
+// natives under io/liteparse/native/<classifier>/). Merging all six keeps the six
+// distinct native directories while de-duplicating the identical class files.
+//
+//   ./gradlew uberJar    ->    build/libs/liteparse-markdown-<version>-all-platforms.jar
+// Built on demand (and by the Release workflow), not by the default `build`, so PR CI
+// doesn't download every platform bundle.
+// ---------------------------------------------------------------------------
+val nativeClassifiers = listOf(
+    "linux-x86_64", "linux-aarch64",
+    "macos-x86_64", "macos-aarch64",
+    "windows-x86_64", "windows-aarch64",
+)
+
+val allPlatformBundles by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+    isTransitive = false // each bundle is self-contained
+}
+
+dependencies {
+    nativeClassifiers.forEach { c ->
+        allPlatformBundles("io.github.mapo80:liteparse-java-bundle:$liteparseJavaVersion:$c")
+    }
+}
+
+tasks.register<ShadowJar>("uberJar") {
+    group = "build"
+    description = "Single cross-platform jar: liteparse-markdown + commonmark + liteparse-java + " +
+        "native bundles for all platforms."
+    archiveClassifier.set("all-platforms")
+    from(sourceSets["main"].output)
+    // runtimeClasspath = commonmark (liteparse-java is compileOnly); allPlatformBundles = the 6 bundles.
+    configurations = listOf(
+        project.configurations["runtimeClasspath"],
+        project.configurations["allPlatformBundles"],
+    )
+    relocate("org.commonmark", "io.liteparse.markdown.shaded.commonmark")
+    mergeServiceFiles()
+    // The six bundles carry identical liteparse-java/Jackson classes (only the per-classifier
+    // native directories differ); keep the first copy of each duplicated entry.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // Mirror the excludes the shadow plugin applies to the auto-created `shadowJar` task (a manually
+    // registered ShadowJar does NOT inherit them). Without this, commonmark's `module-info.class`
+    // survives relocation and gives the whole uber jar the bogus module identity `org.commonmark`
+    // (exporting packages that no longer exist) — breaking any module-path consumer.
+    exclude("module-info.class")
+    exclude("META-INF/versions/**/module-info.class")
+    exclude("META-INF/INDEX.LIST")
+    exclude("META-INF/*.SF")
+    exclude("META-INF/*.DSA")
+    exclude("META-INF/*.RSA")
+}
 
 // Run the CLI for manual checks: ./gradlew runCli -PcliArgs="document.pdf"
 tasks.register<JavaExec>("runCli") {

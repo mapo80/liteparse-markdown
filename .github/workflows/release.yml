@@ -35,14 +35,20 @@ jobs:
           fi
 
       - name: Build, test & assemble jars
-        run: ./gradlew build --no-daemon --console=plain
+        # `build` = compile + tests + the lean `-all` jar; `uberJar` = the single cross-platform
+        # artifact (downloads the liteparse-java native bundles for all 6 platforms and merges them).
+        run: ./gradlew build uberJar --no-daemon --console=plain
 
       - name: List artifacts
-        run: ls -la build/libs
+        run: ls -lh build/libs
 
       - name: Create git tag
         if: ${{ !inputs.dry-run }}
         run: |
+          if git ls-remote --tags origin "md-v${{ inputs.version }}" | grep -q .; then
+            echo "::error::tag md-v${{ inputs.version }} already exists — bump the version or delete the tag"
+            exit 1
+          fi
           git tag "md-v${{ inputs.version }}"
           git push origin "md-v${{ inputs.version }}"
 
@@ -53,10 +59,19 @@ jobs:
           tag_name: md-v${{ inputs.version }}
           name: "v${{ inputs.version }}"
           generate_release_notes: true
+          body: |
+            ### Artifacts
+            - **`liteparse-markdown-${{ inputs.version }}-all-platforms.jar`** — recommended.
+              Single self-contained jar: liteparse-markdown + commonmark + liteparse-java + native
+              binaries for **all 6 platforms** (Linux/macOS/Windows × x86_64/arm64). One download,
+              runs everywhere.
+            - `liteparse-markdown-${{ inputs.version }}-all.jar` — lean jar (markdown + commonmark
+              only); pair it with a per-platform [`liteparse-java` bundle](https://github.com/mapo80/liteparse-java/releases).
+            - `…-sources.jar`, `…-javadoc.jar`, and the thin `….jar` for Maven-style consumers.
           files: build/libs/*.jar
 
       - name: Dry-run summary
         if: ${{ inputs.dry-run }}
         run: |
           echo "## Dry run — would release md-v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
-          for f in build/libs/*.jar; do echo "- $(basename "$f")" >> $GITHUB_STEP_SUMMARY; done
+          for f in build/libs/*.jar; do echo "- $(basename "$f") ($(du -h "$f" | cut -f1))" >> $GITHUB_STEP_SUMMARY; done

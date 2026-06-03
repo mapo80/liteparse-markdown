@@ -51,14 +51,24 @@ complex layouts.
 
 ## Installation
 
-Distributed as **GitHub Release assets** (like liteparse-java; no Maven Central). You need two jars
-on the classpath:
+Distributed as **GitHub Release assets** (like liteparse-java; no Maven Central) from the
+[latest release](https://github.com/mapo80/liteparse-markdown/releases/latest).
 
-1. `liteparse-markdown-<version>-all.jar` — this library **with commonmark bundled** (from the
-   [latest release](https://github.com/mapo80/liteparse-markdown/releases/latest)).
-2. A `liteparse-java` **platform bundle** for your OS/arch (from the
-   [liteparse-java releases](https://github.com/mapo80/liteparse-java/releases/latest)) — it provides
-   the parser and its native binaries.
+### Option A — single all-platforms jar (recommended)
+
+One self-contained download that bundles liteparse-markdown, commonmark, the liteparse-java parser
+**and the native binaries for all six platforms** (Linux/macOS/Windows × x86_64/arm64). liteparse-java
+selects the right native at runtime, so the same jar runs everywhere — nothing else on the classpath:
+
+```bash
+java -cp "liteparse-markdown-0.3.0-all-platforms.jar:your-app.jar" com.example.App
+```
+
+### Option B — lean jar + your platform bundle (smaller)
+
+If you want a smaller download (or already ship a `liteparse-java` bundle), use the lean `-all` jar
+(library + commonmark) plus a `liteparse-java` **platform bundle** for your OS/arch (from the
+[liteparse-java releases](https://github.com/mapo80/liteparse-java/releases/latest)):
 
 ```bash
 java -cp "liteparse-markdown-0.3.0-all.jar:liteparse-java-bundle-2.1.0-linux-x86_64.jar:your-app.jar" \
@@ -98,9 +108,8 @@ A small CLI is bundled for quick checks:
 ```bash
 ./gradlew runCli -PcliArgs="document.pdf"            # prints Markdown
 ./gradlew runCli -PcliArgs="document.pdf --no-ocr -o out.md"
-# or, from the jars:
-java -cp "liteparse-markdown-0.3.0-all.jar:liteparse-java-bundle-2.1.0-<classifier>.jar" \
-    io.liteparse.markdown.cli.Main document.pdf
+# or, from the single all-platforms jar (no other jars needed):
+java -cp liteparse-markdown-0.3.0-all-platforms.jar io.liteparse.markdown.cli.Main document.pdf
 ```
 
 ## Benchmark
