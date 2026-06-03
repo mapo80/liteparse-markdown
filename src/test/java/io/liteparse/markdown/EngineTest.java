@@ -1,5 +1,6 @@
 package io.liteparse.markdown;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.liteparse.ParseResult;
@@ -17,6 +18,11 @@ class EngineTest {
     private static TextItem item(String text, double x, double y, double w, double h,
                                  Integer weight) {
         return new TextItem(text, x, y, w, h, "Helvetica", h, weight, 0, 1.0);
+    }
+
+    private static TextItem styled(String text, double x, double y, double w, double h,
+                                   Integer weight, int flags, String font, double confidence) {
+        return new TextItem(text, x, y, w, h, font, h, weight, flags, confidence);
     }
 
     @Test
@@ -57,5 +63,86 @@ class EngineTest {
         String md = Markdown.from(new ParseResult(List.of(page), ""));
         // The leading "1 ... " must not become a heading; '*' should be escaped, not emphasis.
         assertTrue(md.contains("\\*") || md.contains("1 \\* 2"), () -> "expected escaping in:\n" + md);
+    }
+
+    @Test
+    void detectsHeadingHierarchyByHeight() {
+        List<TextItem> items = List.of(
+                item("Big Title", 50, 10, 200, 30, 400),
+                item("Section", 50, 50, 120, 20, 400),
+                item("Subsection", 50, 85, 140, 16, 400),
+                item("This is a normal paragraph with enough characters to dominate the body size.",
+                        50, 120, 480, 12, 400));
+        String md = Markdown.from(new ParseResult(List.of(new ParsedPage(1, 600, 800, "", items)), ""));
+        assertTrue(md.contains("# Big Title"), () -> md);
+        assertTrue(md.contains("## Section"), () -> md);
+        assertTrue(md.contains("### Subsection"), () -> md);
+    }
+
+    @Test
+    void rendersBoldItalicAndInlineCode() {
+        List<TextItem> items = List.of(
+                styled("normal", 50, 10, 40, 12, 400, 0, "Helvetica", 1.0),
+                styled("bolded", 92, 10, 45, 12, 700, 0, "Helvetica", 1.0),
+                styled("italics", 139, 10, 45, 12, 400, 0x40, "Helvetica", 1.0),
+                styled("codey", 186, 10, 40, 12, 400, 0, "CourierNewPSMT", 1.0));
+        String md = Markdown.from(new ParseResult(List.of(new ParsedPage(1, 600, 800, "", items)), ""));
+        assertTrue(md.contains("**bolded**"), () -> md);
+        assertTrue(md.contains("*italics*"), () -> md);
+        assertTrue(md.contains("`codey`"), () -> md);
+    }
+
+    @Test
+    void rendersOrderedList() {
+        List<TextItem> items = List.of(
+                item("1. First item", 50, 10, 120, 12, 400),
+                item("2. Second item", 50, 30, 130, 12, 400));
+        String md = Markdown.from(new ParseResult(List.of(new ParsedPage(1, 600, 800, "", items)), ""));
+        assertTrue(md.contains("1. First item"), () -> md);
+        assertTrue(md.contains("2. Second item"), () -> md);
+    }
+
+    @Test
+    void plainTextIsNotTurnedIntoTable() {
+        List<TextItem> items = List.of(
+                item("The", 50, 10, 20, 12, 400),
+                item("quick", 72, 10, 35, 12, 400),
+                item("brown", 110, 10, 40, 12, 400),
+                item("fox", 152, 10, 20, 12, 400),
+                item("jumps", 175, 10, 40, 12, 400));
+        String md = Markdown.from(new ParseResult(List.of(new ParsedPage(1, 600, 800, "", items)), ""));
+        assertFalse(md.contains("|"), () -> "single-column prose must not become a table:\n" + md);
+        assertTrue(md.contains("The quick brown fox jumps"), () -> md);
+    }
+
+    @Test
+    void ocrTextDoesNotBecomeHeadingFromHeight() {
+        List<TextItem> items = List.of(
+                // OCR line: tall but low confidence -> must NOT be a heading
+                styled("Scanned Title", 50, 10, 200, 30, 400, 0, "Helvetica", 0.8),
+                styled("Lots of normal body text here to set the dominant body height for the page.",
+                        50, 60, 480, 12, 400, 0, "Helvetica", 1.0));
+        String md = Markdown.from(new ParseResult(List.of(new ParsedPage(1, 600, 800, "", items)), ""));
+        assertFalse(md.contains("# Scanned Title"), () -> "OCR text should not be a heading:\n" + md);
+        assertTrue(md.contains("Scanned Title"), () -> md);
+    }
+
+    @Test
+    void rendersThreeColumnTable() {
+        List<TextItem> items = List.of(
+                item("Col A", 50, 150, 40, 12, 400),
+                item("Col B", 250, 150, 40, 12, 400),
+                item("Col C", 450, 150, 40, 12, 400),
+                item("a1", 50, 170, 12, 12, 400),
+                item("b1", 250, 170, 12, 12, 400),
+                item("c1", 450, 170, 12, 12, 400),
+                item("a2", 50, 190, 12, 12, 400),
+                item("b2", 250, 190, 12, 12, 400),
+                item("c2", 450, 190, 12, 12, 400));
+        String md = Markdown.from(new ParseResult(List.of(new ParsedPage(1, 600, 800, "", items)), ""));
+        assertTrue(md.contains("| Col A | Col B | Col C |"), () -> md);
+        assertTrue(md.contains("| --- | --- | --- |"), () -> md);
+        assertTrue(md.contains("| a1 | b1 | c1 |"), () -> md);
+        assertTrue(md.contains("| a2 | b2 | c2 |"), () -> md);
     }
 }
