@@ -98,19 +98,66 @@ java -cp "liteparse-markdown-0.1.0-all.jar:liteparse-java-bundle-2.1.0-<classifi
 
 ## Benchmark
 
-[`benchmark/`](benchmark/) compares liteparse-markdown against **pymupdf4llm** on born-digital PDFs
-with ground-truth Markdown, using normalized **edit distance** (text) and **TEDS** (tables) — the same
-metrics as OmniDocBench, computed standalone (see [benchmark/README.md](benchmark/README.md)).
+A reproducible head-to-head against **[pymupdf4llm](https://github.com/pymupdf/RAG)** — the closest
+"fast, native, no-ML" analogue — on **born-digital PDFs** with ground-truth Markdown. The full harness
+(dataset download, runners, metrics) lives in [`benchmark/`](benchmark/).
 
-Seed fixture (`report.pdf`: headings, bold/italic, a list, a 3-column table):
+### Methodology
 
-| Tool | Text edit dist ↓ | Table TEDS ↑ |
-|------|------------------|--------------|
-| **liteparse-markdown** | **0.000** | **1.000** |
-| pymupdf4llm | 0.000 | 0.867 |
+- **Dataset:** **14 documents** = **13 rich academic papers** from
+  [**READoc**](https://huggingface.co/datasets/lazyc/READoc) (`READoc-arXiv`, MIT license — real
+  born-digital arXiv PDFs with multi-column layout, tables and formulas, paired with LaTeX-derived
+  ground-truth Markdown) **+ 1 controlled fixture** (`report.pdf`: headings, bold/italic, a list, a
+  3-column table, with exact ground truth). The arXiv set is fetched by `benchmark/download.py`
+  (not committed).
+- **Tools:** liteparse-markdown (via its CLI, batch mode) and pymupdf4llm — both run locally, no GPU.
+- **Metrics** (standalone, the same families as OmniDocBench/READoc): per-document **text** normalized
+  edit distance + similarity + token-F1; **heading** and **list** precision/recall/F1; **table**
+  **TEDS** and **TEDS-S** (structure-only). Plus **timing**, split for our library into
+  **liteparse-java** (PDF→`ParseResult`, native PDFium) and **liteparse-markdown** (`ParseResult`→Markdown).
 
-It is a seed of one controlled document — add representative PDFs to grow it. (OmniDocBench itself ships
-only page images, which pymupdf4llm cannot parse; liteparse can, via OCR — see the benchmark README.)
+### Summary (mean over the 14 documents)
+
+| Metric | liteparse-markdown | pymupdf4llm | Winner |
+|--------|-------------------:|------------:|:------:|
+| Text edit distance ↓ | 0.281 | **0.242** | pymupdf4llm |
+| Text similarity ↑ | 0.719 | **0.758** | pymupdf4llm |
+| Text token-F1 ↑ | 0.810 | **0.816** | ≈ tie |
+| Heading F1 ↑ | 0.182 | **0.561** | pymupdf4llm |
+| List F1 ↑ | 0.071 | **0.344** | pymupdf4llm |
+| Table TEDS ↑ | **1.000** | 0.867 | liteparse* |
+| Table TEDS-S ↑ | 1.000 | 1.000 | tie |
+
+<sub>*Only the `report` fixture has GFM-pipe tables in its ground truth; READoc encodes arXiv tables as
+HTML/LaTeX (not GFM), so the table metric here effectively reflects the controlled fixture.</sub>
+
+### Timing (mean per document)
+
+| liteparse-java (parse) | liteparse-markdown (convert) | **our total** | pymupdf4llm (total) |
+|-----------------------:|-----------------------------:|--------------:|--------------------:|
+| 138.1 ms | 21.4 ms | **159.5 ms** | 11 165.5 ms |
+
+Per-document, our total ranges **2.7–425 ms** vs pymupdf4llm **0.43–78.3 s**.
+
+### Analysis
+
+- **Speed — decisive win:** liteparse-markdown is on average **~70× faster** (≈160 ms vs ≈11 s/doc).
+  The split shows the cost is mostly native parsing (~138 ms via PDFium) with conversion adding only
+  ~21 ms; pymupdf4llm's Python layout analysis is far heavier (one paper took 78 s).
+- **Text content — near parity:** token-F1 is essentially tied (0.810 vs 0.816); pymupdf4llm is
+  marginally ahead on edit distance/similarity. On clean text both extract the body faithfully.
+- **Structure (headings/lists) — pymupdf4llm ahead:** our height-based heuristics under-detect section
+  headings and list items in dense two-column academic papers (Heading F1 0.18, List F1 0.07). This is
+  our clearest area to improve (font-flag/indent cues, column-aware reading order).
+- **Tables:** on the controlled fixture liteparse reconstructs the GFM table perfectly (TEDS 1.000 vs
+  0.867); broader table evaluation needs ground truth in GFM form (out of scope for the arXiv set).
+- **Formulas:** out of scope — neither tool emits LaTeX math, which depresses raw-text scores on
+  formula-heavy arXiv papers for **both** tools equally.
+
+**Takeaway:** for born-digital documents where **speed and clean text** matter, liteparse-markdown is
+extremely fast and competitive on text; for **rich academic structure** (headings/lists in complex
+layouts) pymupdf4llm currently leads — improving the structure heuristics is the priority. Reproduce
+with [`benchmark/README.md`](benchmark/README.md); raw numbers in `benchmark/results.csv`.
 
 ## Building from source
 
