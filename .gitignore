@@ -7,6 +7,12 @@ build/
 # Local liteparse-java dev bundle (resolved from GitHub Releases in CI)
 /libs/
 
+# Benchmark (manual) — keep scripts + fixtures + GT, ignore generated outputs/env
+/benchmark/predictions/
+/benchmark/results.csv
+/benchmark/.venv/
+**/__pycache__/
+
 # IDE / OS
 .idea/
 *.iml

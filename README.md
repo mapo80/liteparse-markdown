@@ -96,6 +96,22 @@ java -cp "liteparse-markdown-0.1.0-all.jar:liteparse-java-bundle-2.1.0-<classifi
     io.liteparse.markdown.cli.Main document.pdf
 ```
 
+## Benchmark
+
+[`benchmark/`](benchmark/) compares liteparse-markdown against **pymupdf4llm** on born-digital PDFs
+with ground-truth Markdown, using normalized **edit distance** (text) and **TEDS** (tables) — the same
+metrics as OmniDocBench, computed standalone (see [benchmark/README.md](benchmark/README.md)).
+
+Seed fixture (`report.pdf`: headings, bold/italic, a list, a 3-column table):
+
+| Tool | Text edit dist ↓ | Table TEDS ↑ |
+|------|------------------|--------------|
+| **liteparse-markdown** | **0.000** | **1.000** |
+| pymupdf4llm | 0.000 | 0.867 |
+
+It is a seed of one controlled document — add representative PDFs to grow it. (OmniDocBench itself ships
+only page images, which pymupdf4llm cannot parse; liteparse can, via OCR — see the benchmark README.)
+
 ## Building from source
 
 Requires JDK 17+. `liteparse-java` (incl. the native bundle used by the end-to-end test) is

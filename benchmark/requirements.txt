@@ -1,0 +1,5 @@
+# Benchmark harness dependencies (run manually; not part of the library build).
+pymupdf4llm>=0.0.17
+Levenshtein>=0.25
+apted>=1.0.3
+reportlab>=4.0        # only needed to (re)generate the born-digital fixtures
