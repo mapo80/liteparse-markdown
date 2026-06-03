@@ -6,6 +6,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://adoptium.net/)
 
+![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows%20%C2%B7%20x86__64%20%7C%20arm64-lightgrey.svg)
+
 Generate **Markdown** from PDFs, Office documents and images, on top of
 [**liteparse-java**](https://github.com/mapo80/liteparse-java). Fully **local and
 deterministic** — no LLM, no cloud: document structure (headings, paragraphs, bold/italic,
