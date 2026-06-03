@@ -40,6 +40,18 @@ def strip_markdown(md: str) -> str:
     return re.sub(r"\s+", " ", " ".join(out)).strip()
 
 
+_MATH_SPAN = re.compile(r"\$\$.*?\$\$|\$[^$\n]*\$|\\\(.*?\\\)|\\\[.*?\\\]", re.DOTALL)
+_LATEX_CMD = re.compile(r"\\[a-zA-Z]+\*?(?:\{[^{}]*\})*")
+
+
+def strip_math(md: str) -> str:
+    """Remove LaTeX math (``$…$``, ``$$…$$``, ``\\(…\\)``, ``\\[…\\]``) and bare LaTeX commands.
+    Formulas are out of scope for both tools, so the no-math text metrics isolate the prose."""
+    md = _MATH_SPAN.sub(" ", md)
+    md = _LATEX_CMD.sub(" ", md)
+    return md
+
+
 def text_metrics(gt_md: str, pred_md: str) -> dict:
     a, b = strip_markdown(gt_md), strip_markdown(pred_md)
     ned = 0.0 if not a and not b else RFLev.normalized_distance(a, b)
@@ -162,6 +174,8 @@ def table_metrics(gt_md, pred_md):
 def all_metrics(gt_md: str, pred_md: str) -> dict:
     m = {}
     m.update({"text_" + k: v for k, v in text_metrics(gt_md, pred_md).items()})
+    m.update({"textnomath_" + k: v for k, v in
+              text_metrics(strip_math(gt_md), strip_math(pred_md)).items()})
     m.update({"heading_" + k: v for k, v in heading_metrics(gt_md, pred_md).items()})
     m.update({"list_" + k: v for k, v in list_metrics(gt_md, pred_md).items()})
     m.update({"table_" + k: v for k, v in table_metrics(gt_md, pred_md).items()})

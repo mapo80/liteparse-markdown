@@ -7,7 +7,7 @@ build/
 # Local liteparse-java dev bundle (resolved from GitHub Releases in CI)
 /libs/
 
-# Benchmark (manual) — keep scripts + the controlled `report` fixture; ignore the
+# Benchmark (manual) — keep scripts + the controlled fixtures; ignore the
 # downloaded READoc/arXiv dataset (fetched by download.py), generated outputs and venv.
 /benchmark/predictions/
 /benchmark/results.csv
@@ -15,8 +15,14 @@ build/
 /benchmark/.venv/
 /benchmark/data/pdfs/*
 !/benchmark/data/pdfs/report.pdf
+!/benchmark/data/pdfs/prices.pdf
+!/benchmark/data/pdfs/schedule.pdf
+!/benchmark/data/pdfs/measurements.pdf
 /benchmark/data/gt/*
 !/benchmark/data/gt/report.md
+!/benchmark/data/gt/prices.md
+!/benchmark/data/gt/schedule.md
+!/benchmark/data/gt/measurements.md
 **/__pycache__/
 
 # IDE / OS

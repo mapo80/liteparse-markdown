@@ -2,23 +2,18 @@ package io.liteparse.markdown.engine;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.commonmark.node.Code;
-import org.commonmark.node.Document;
-import org.commonmark.node.Emphasis;
-import org.commonmark.node.Node;
-import org.commonmark.node.Paragraph;
-import org.commonmark.node.StrongEmphasis;
-import org.commonmark.node.Text;
-import org.commonmark.renderer.markdown.MarkdownRenderer;
 
 /**
- * Emits Markdown from {@link Block}s. Inline content (with emphasis/code and proper
- * escaping) is rendered by commonmark-java's {@link MarkdownRenderer}; block scaffolding
- * (headings, lists, tables, rules, images) is assembled around it.
+ * Emits Markdown from {@link Block}s. Inline content (emphasis/code) and block scaffolding
+ * (headings, lists, tables, rules, images) are assembled here.
+ *
+ * <p>Inline text is escaped <em>minimally</em> — only the characters that would otherwise be
+ * read as emphasis/code ({@code \ * `}) are backslash-escaped. Punctuation such as
+ * {@code [ ] . ( ) #} is emitted verbatim, matching how reference Markdown (and tools like
+ * pymupdf4llm) render born-digital text: e.g. a bibliography entry stays {@code [12] Author …}
+ * rather than {@code \[12\] Author …}, and a numbered heading stays {@code ## 1.1 Title}.
  */
 public final class MarkdownEmitter {
-
-    private final MarkdownRenderer inlineRenderer = MarkdownRenderer.builder().build();
 
     public String emit(List<Block> blocks) {
         List<String> parts = new ArrayList<>();
@@ -27,7 +22,7 @@ public final class MarkdownEmitter {
             if (b instanceof Block.Heading h) {
                 md = "#".repeat(clamp(h.level())) + " " + inline(h.spans());
             } else if (b instanceof Block.Paragraph p) {
-                md = inline(p.spans());
+                md = dehyphenate(inline(p.spans()));
             } else if (b instanceof Block.UnorderedList l) {
                 md = list(l.items(), false);
             } else if (b instanceof Block.OrderedList l) {
@@ -101,46 +96,57 @@ public final class MarkdownEmitter {
         return s.replace("[", "\\[").replace("]", "\\]");
     }
 
-    /** Render a run of styled spans to inline Markdown via commonmark (handles escaping). */
+    /** Render a run of styled spans to inline Markdown with minimal escaping. */
     private String inline(List<Span> spans) {
-        Document doc = new Document();
-        Paragraph p = new Paragraph();
+        StringBuilder sb = new StringBuilder();
         boolean first = true;
         for (Span s : spans) {
             if (s.text().isBlank()) {
                 continue;
             }
             if (!first) {
-                p.appendChild(new Text(" "));
+                sb.append(' ');
             }
             first = false;
-            p.appendChild(inlineNode(s));
+            sb.append(renderSpan(s));
         }
-        doc.appendChild(p);
-        return inlineRenderer.render(doc).strip();
+        return sb.toString().strip();
     }
 
-    private Node inlineNode(Span s) {
+    private static String renderSpan(Span s) {
         if (s.code()) {
-            return new Code(s.text());
+            return "`" + s.text() + "`"; // code spans are verbatim
         }
+        String t = escapeInline(s.text());
         if (s.bold() && s.italic()) {
-            StrongEmphasis strong = new StrongEmphasis();
-            Emphasis em = new Emphasis();
-            em.appendChild(new Text(s.text()));
-            strong.appendChild(em);
-            return strong;
+            return "***" + t + "***";
         }
         if (s.bold()) {
-            StrongEmphasis strong = new StrongEmphasis();
-            strong.appendChild(new Text(s.text()));
-            return strong;
+            return "**" + t + "**";
         }
         if (s.italic()) {
-            Emphasis em = new Emphasis();
-            em.appendChild(new Text(s.text()));
-            return em;
+            return "*" + t + "*";
         }
-        return new Text(s.text());
+        return t;
+    }
+
+    /** De-hyphenate a word split across a line break inside a reflowed paragraph: "sym- plectic"
+     * -> "symplectic". (Line-wrap hyphens are far more often plain word breaks than genuine
+     * compounds, so removing them matches the source text more often than keeping them.) */
+    static String dehyphenate(String s) {
+        return s.replaceAll("(\\p{L})-\\s+(\\p{Ll})", "$1$2");
+    }
+
+    /** Escape only the characters that would otherwise start emphasis/code or an escape. */
+    private static String escapeInline(String s) {
+        StringBuilder out = new StringBuilder(s.length() + 4);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' || c == '*' || c == '`') {
+                out.append('\\');
+            }
+            out.append(c);
+        }
+        return out.toString();
     }
 }

@@ -5,14 +5,17 @@ import io.liteparse.ParsedPage;
 import io.liteparse.ScreenshotResult;
 import io.liteparse.markdown.engine.Block;
 import io.liteparse.markdown.engine.BlockClassifier;
+import io.liteparse.markdown.engine.HeadingModel;
 import io.liteparse.markdown.engine.LayoutAnalyzer;
 import io.liteparse.markdown.engine.MarkdownEmitter;
+import io.liteparse.markdown.engine.TextLine;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Converts a LiteParse {@link ParseResult} into Markdown.
@@ -55,13 +58,31 @@ public final class Markdown {
         if (result == null) {
             return "";
         }
-        double body = LayoutAnalyzer.bodyFontSize(result);
-        BlockClassifier classifier = new BlockClassifier(body, options.detectTables());
+        HeadingModel headings = HeadingModel.build(result);
+        BlockClassifier classifier = new BlockClassifier(headings, options.detectTables());
         MarkdownEmitter emitter = new MarkdownEmitter();
 
-        List<String> pages = new ArrayList<>();
+        // Group every page into lines once, then drop document-wide running headers/footers.
+        List<List<TextLine>> perPage = new ArrayList<>();
         for (ParsedPage page : result.pages()) {
-            List<Block> blocks = new ArrayList<>(classifier.classify(LayoutAnalyzer.lines(page)));
+            perPage.add(LayoutAnalyzer.lines(page));
+        }
+        Set<String> repeated = LayoutAnalyzer.repeatedLineKeys(perPage);
+
+        List<String> pages = new ArrayList<>();
+        for (int p = 0; p < result.pages().size(); p++) {
+            ParsedPage page = result.pages().get(p);
+            List<TextLine> lines = perPage.get(p);
+            if (!repeated.isEmpty()) {
+                List<TextLine> kept = new ArrayList<>(lines.size());
+                for (TextLine line : lines) {
+                    if (!repeated.contains(LayoutAnalyzer.headerKey(line.text()))) {
+                        kept.add(line);
+                    }
+                }
+                lines = kept;
+            }
+            List<Block> blocks = new ArrayList<>(classifier.classify(lines));
             if (options.includeImages() && screenshots != null) {
                 screenshots.stream()
                         .filter(s -> s.pageNum() == page.pageNum())
