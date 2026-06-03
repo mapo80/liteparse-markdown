@@ -1,0 +1,14 @@
+# Gradle / Java
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+
+# Local liteparse-java dev bundle (resolved from GitHub Releases in CI)
+/libs/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store

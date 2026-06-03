@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (must match gradle.properties, e.g. 0.1.0)"
+        required: true
+        type: string
+      dry-run:
+        description: "Build & assemble but do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Validate version
+        run: |
+          V=$(grep -E '^version=' gradle.properties | cut -d= -f2)
+          if [ "$V" != "${{ inputs.version }}" ]; then
+            echo "::error::version mismatch: gradle.properties=$V input=${{ inputs.version }}"
+            exit 1
+          fi
+
+      - name: Build, test & assemble jars
+        run: ./gradlew build --no-daemon --console=plain
+
+      - name: List artifacts
+        run: ls -la build/libs
+
+      - name: Create git tag
+        if: ${{ !inputs.dry-run }}
+        run: |
+          git tag "md-v${{ inputs.version }}"
+          git push origin "md-v${{ inputs.version }}"
+
+      - name: Create GitHub Release
+        if: ${{ !inputs.dry-run }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: md-v${{ inputs.version }}
+          name: "v${{ inputs.version }}"
+          generate_release_notes: true
+          files: build/libs/*.jar
+
+      - name: Dry-run summary
+        if: ${{ inputs.dry-run }}
+        run: |
+          echo "## Dry run — would release md-v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          for f in build/libs/*.jar; do echo "- $(basename "$f")" >> $GITHUB_STEP_SUMMARY; done
